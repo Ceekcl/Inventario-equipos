@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inventario escolar</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --azul: #193c71;
+      --borde: #dce3ed;
+      --texto: #172b46;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f3f6fa;
+      color: var(--texto);
+    }
+    header { background: var(--azul); color: white; }
+    .barra, main { max-width: 1200px; margin: auto; padding: 24px; }
+    .barra, .titulo {
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    }
+    .marca { font-size: 19px; font-weight: 750; }
+    header a { color: white; }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 36px); }
+    .subtitulo { color: #526780; margin: 8px 0 0; }
+    .boton {
+      display: inline-block; background: var(--azul); color: white;
+      padding: 12px 18px; border: 0; border-radius: 9px;
+      text-decoration: none; font: inherit; font-weight: 600;
+      cursor: pointer;
+    }
+    .tarjetas {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin: 28px 0;
+    }
+    .tarjeta, .panel {
+      background: white; border: 1px solid var(--borde);
+      border-radius: 14px;
+    }
+    .tarjeta { padding: 22px; }
+    .tarjeta span { display: block; color: #526780; font-size: 14px; }
+    .tarjeta strong { display: block; font-size: 32px; margin-top: 10px; }
+    .verde { color: #16704e; }
+    .ambar { color: #925800; }
+    .gris { color: #5d6674; }
+    .filtros {
+      display: flex; gap: 14px; align-items: end;
+      flex-wrap: wrap; padding: 22px;
+    }
+    .campo { flex: 1 1 220px; }
+    label { display: block; font-weight: 600; margin-bottom: 7px; }
+    input, select {
+      width: 100%; padding: 12px; font: inherit;
+      border: 1px solid #aab9cb; border-radius: 8px;
+      background: white; color: var(--texto);
+    }
+    a { color: var(--azul); }
+    :focus-visible { outline: 3px solid #df9e20; outline-offset: 3px; }
+    .resultados { padding: 0 22px 16px; color: #526780; }
+    .tabla { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    caption { text-align: left; padding: 18px 22px; font-weight: 700; }
+    th, td {
+      padding: 15px 20px; text-align: left;
+      border-top: 1px solid var(--borde); vertical-align: middle;
+    }
+    th { background: #f7f9fc; font-size: 13px; color: #526780; }
+    td { font-size: 14px; }
+    tbody tr:hover { background: #f8faff; }
+    .estado {
+      display: inline-block; border-radius: 20px;
+      padding: 5px 10px; white-space: nowrap;
+      background: #edf1f6; font-size: 12px; font-weight: 650;
+    }
+    .estado.operativo { background: #e4f4eb; color: #166043; }
+    .estado.reparacion { background: #fff2d6; color: #815000; }
+    .vacio { text-align: center; padding: 36px; color: #526780; }
+    .paginacion {
+      display: flex; justify-content: center; align-items: center;
+      gap: 22px; padding: 22px; border-top: 1px solid var(--borde);
+    }
+    footer { padding: 24px 0; color: #526780; font-size: 13px; }
+    @media (max-width: 700px) {
+      .tarjetas { grid-template-columns: repeat(2, 1fr); }
+      .barra, main { padding: 18px; }
+      .filtros .boton { width: 100%; }
+    }
+    @media (max-width: 360px) {
+      .tarjetas { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="barra">
+      <div class="marca">Inventario escolar</div>
+      <a href="{% url 'admin:index' %}">Administración</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="titulo">
+      <div>
+        <h1>Equipos del colegio</h1>
+        <p class="subtitulo">Consulta los equipos, su ubicación y su estado.</p>
+      </div>
+      {% if perms.equipos.add_equipo %}
+        <a class="boton" href="{% url 'admin:equipos_equipo_add' %}">
+          + Registrar equipo
+        </a>
+      {% endif %}
+    </section>
+
+    <section class="tarjetas" aria-label="Resumen de todo el inventario">
+      <div class="tarjeta"><span>Total de equipos</span><strong>{{ resumen.total }}</strong></div>
+      <div class="tarjeta"><span>Operativos</span><strong class="verde">{{ resumen.operativos }}</strong></div>
+      <div class="tarjeta"><span>En reparación</span><strong class="ambar">{{ resumen.en_reparacion }}</strong></div>
+      <div class="tarjeta"><span>Dados de baja</span><strong class="gris">{{ resumen.dados_de_baja }}</strong></div>
+    </section>
+
+    <section class="panel" aria-label="Consulta de equipos">
+      <form class="filtros" method="get">
+        <div class="campo">
+          <label for="busqueda">Buscar equipo</label>
+          <input id="busqueda" type="search" name="q"
+                 value="{{ busqueda }}"
+                 placeholder="Serie, tipo, marca, modelo o ubicación">
+        </div>
+        <div class="campo">
+          <label for="estado">Estado</label>
+          <select id="estado" name="estado">
+            <option value="">Todos los estados</option>
+            {% for valor, etiqueta in estados %}
+              <option value="{{ valor }}"{% if estado_actual == valor %} selected{% endif %}>
+                {{ etiqueta }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="boton" type="submit">Buscar</button>
+        <a href="{% url 'lista_equipos' %}">Limpiar</a>
+      </form>
+
+      <div class="resultados">
+        {{ pagina.paginator.count }} equipo{{ pagina.paginator.count|pluralize:"s" }}
+        en el listado. Las tarjetas resumen todo el inventario.
+      </div>
+
+      <div class="tabla">
+        <table>
+          <caption>Listado de equipos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Número de serie</th>
+              <th scope="col">Equipo</th>
+              <th scope="col">Ubicación</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for equipo in pagina %}
+              <tr>
+                <td><strong>{{ equipo.numero_serie }}</strong></td>
+                <td>{{ equipo.tipo }} · {{ equipo.marca }} {{ equipo.modelo }}</td>
+                <td>{{ equipo.ubicacion }}</td>
+                <td>
+                  <span class="estado {% if equipo.estado == 'Operativo' %}operativo{% elif equipo.estado == 'En reparación' %}reparacion{% endif %}">
+                    {{ equipo.get_estado_display }}
+                  </span>
+                </td>
+                <td>
+                  {% if perms.equipos.change_equipo %}
+                    <a href="{% url 'admin:equipos_equipo_change' equipo.pk %}"
+                       aria-label="Editar equipo {{ equipo.numero_serie }}">Editar</a>
+                  {% else %}
+                    Solo lectura
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="vacio">No hay equipos que coincidan con esta consulta.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if pagina.has_other_pages %}
+        <nav class="paginacion" aria-label="Páginas del listado">
+          {% if pagina.has_previous %}
+            <a href="?q={{ busqueda|urlencode }}&amp;estado={{ estado_actual|urlencode }}&amp;page={{ pagina.previous_page_number }}">Anterior</a>
+          {% endif %}
+          <span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+          {% if pagina.has_next %}
+            <a href="?q={{ busqueda|urlencode }}&amp;estado={{ estado_actual|urlencode }}&amp;page={{ pagina.next_page_number }}">Siguiente</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    </section>
+
+    <footer>Inventario de equipos escolares · Gestión de recursos tecnológicos</footer>
+  </main>
+</body>
+</html>
